@@ -1,7 +1,7 @@
 #include "AST.h"
 #include <sstream>
 
-Location Location::NONE(0, 0, 0, 0);
+const Location Location::NONE(0, 0, 0, 0);
 
 
 std::ostream &operator<<(std::ostream &stream, const ASTNode &ast)
@@ -21,4 +21,3 @@ void UseNode::print(std::ostream &stream, const std::string &indent) const
 {
 	stream << indent << "use <" << this->filename << ">\n";
 }
-

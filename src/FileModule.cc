@@ -56,10 +56,11 @@ void FileModule::print(std::ostream &stream, const std::string &indent) const
 	scope.print(stream, indent);
 }
 
-void FileModule::registerUse(const UseNode &usenode) {
+void FileModule::registerUse(const UseNode &usenode)
+{
 	const std::string filename = usenode.filename;
-	std::string extraw = fs::path(filename).extension().generic_string();
-	std::string ext = boost::algorithm::to_lower_copy(extraw);
+	auto extraw = fs::path(filename).extension().generic_string();
+	auto ext = boost::algorithm::to_lower_copy(extraw);
 	
 	if ((ext == ".otf") || (ext == ".ttf")) {
 		if (fs::is_regular(filename)) {
@@ -72,48 +73,47 @@ void FileModule::registerUse(const UseNode &usenode) {
 	}
 }
 
-void FileModule::registerInclude(const std::string &localpath,
-																 const std::string &fullpath)
+void FileModule::registerInclude(const std::string &localpath, const std::string &fullpath)
 {
-	struct stat st{};
-	bool valid = stat(fullpath.c_str(), &st) == 0;
-	this->includes[localpath] = {fullpath, valid, st.st_mtime};
+	this->includes[localpath] = {fullpath};
 }
 
-bool FileModule::includesChanged() const
+time_t FileModule::includesChanged() const
 {
+	time_t latest = 0;
 	for (const auto &item : this->includes) {
-		if (include_modified(item.second)) return true;
+		auto mtime = include_modified(item.second);
+		if (mtime > latest) latest = mtime;
 	}
-	return false;
+	return latest;
 }
 
-bool FileModule::include_modified(const IncludeFile &inc) const
+time_t FileModule::include_modified(const IncludeFile &inc) const
 {
-	struct stat st{};
+	struct stat st;
 
-	bool valid = (StatCache::stat(inc.filename.c_str(), &st) == 0);
-	if (valid && !inc.valid) return true; // Detect appearance of file but not removal
-	if (valid && st.st_mtime > inc.mtime) return true;
+	if (StatCache::stat(inc.filename.c_str(), &st) == 0) {
+		return st.st_mtime;
+	}
 	
-	return false;
+	return 0;
 }
 
 /*!
 	Check if any dependencies have been modified and recompile them.
 	Returns true if anything was recompiled.
 */
-bool FileModule::handleDependencies()
+time_t FileModule::handleDependencies()
 {
-	if (this->is_handling_dependencies) return false;
+	if (this->is_handling_dependencies) return 0;
 	this->is_handling_dependencies = true;
 
-	bool somethingchanged = false;
 	std::vector<std::pair<std::string,std::string>> updates;
 
 	// If a lib in usedlibs was previously missing, we need to relocate it
 	// by searching the applicable paths. We can identify a previously missing module
 	// as it will have a relative path.
+	time_t latest = 0;
 	for (const auto &lib : this->usedlibs) {
 		std::string filename = lib.first;
 		const auto &usenode = lib.second;
@@ -123,9 +123,9 @@ bool FileModule::handleDependencies()
 		// Get an absolute filename for the module
 		if (!fs::path(filename).is_absolute()) {
 			wasmissing = true;
-			fs::path fullpath = find_valid_path(this->path, filename);
+			auto fullpath = find_valid_path(this->path, filename);
 			if (!fullpath.empty()) {
-				updates.push_back(std::make_pair(filename, fullpath.generic_string()));
+				updates.emplace_back(filename, fullpath.generic_string());
 				filename = fullpath.generic_string();
 			}
 			else {
@@ -134,10 +134,12 @@ bool FileModule::handleDependencies()
 		}
 
 		if (found) {
-			bool wascached = ModuleCache::instance()->isCached(filename);
-			FileModule *oldmodule = ModuleCache::instance()->lookup(filename);
+			auto wascached = ModuleCache::instance()->isCached(filename);
+			auto oldmodule = ModuleCache::instance()->lookup(filename);
 			FileModule *newmodule;
-			bool changed = ModuleCache::instance()->evaluate(filename, newmodule);
+			auto mtime = ModuleCache::instance()->evaluate(filename, newmodule);
+			if (mtime > latest) latest = mtime;
+			auto changed = newmodule && newmodule != oldmodule;
 			// Detect appearance but not removal of files, and keep old module
 			// on compile errors (FIXME: Is this correct behavior?)
 			if (changed) {
@@ -146,7 +148,6 @@ bool FileModule::handleDependencies()
 			else {
 				PRINTDB("  %s: %p", filename % oldmodule);
 			}
-			somethingchanged |= changed;
 			// Only print warning if we're not part of an automatic reload
 			if (!newmodule && !wascached && !wasmissing) {
 				PRINTB_NOCACHE("WARNING: Failed to compile library '%s'.", filename);
@@ -161,7 +162,7 @@ bool FileModule::handleDependencies()
 		this->usedlibs.erase(files.first);
 	}
 	this->is_handling_dependencies = false;
-	return somethingchanged;
+	return latest;
 }
 
 AbstractNode *FileModule::instantiate(const Context *ctx, const ModuleInstantiation *inst,
@@ -178,11 +179,11 @@ AbstractNode *FileModule::instantiateWithFileContext(FileContext *ctx, const Mod
 {
 	assert(evalctx == nullptr);
 	
-	AbstractNode *node = new RootNode(inst);
+	auto node = new RootNode(inst);
 	try {
 		ctx->initializeModule(*this); // May throw an ExperimentalFeatureException
 		// FIXME: Set document path to the path of the module
-		std::vector<AbstractNode *> instantiatednodes = this->scope.instantiateChildren(ctx);
+		auto instantiatednodes = this->scope.instantiateChildren(ctx);
 		node->children.insert(node->children.end(), instantiatednodes.begin(), instantiatednodes.end());
 	}
 	catch (EvaluationException &e) {

@@ -19,7 +19,7 @@
 # Please see the 'Building' sections of the OpenSCAD user manual 
 # for updated tips & workarounds.
 #
-# http://en.wikibooks.org/wiki/OpenSCAD_User_Manual
+# https://en.wikibooks.org/wiki/OpenSCAD_User_Manual
 
 !experimental {
   message("If you're building a development binary, consider adding CONFIG+=experimental")
@@ -84,10 +84,14 @@ macx {
   QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.8
 }
 
+# Set same stack size for the linker and #define used in PlatformUtils.h
+STACKSIZE = 8388608 # 8MB # github issue 116
+QMAKE_CXXFLAGS += -DSTACKSIZE=$$STACKSIZE
 
 win* {
   RC_FILE = openscad_win32.rc
   QMAKE_CXXFLAGS += -DNOGDI
+  QMAKE_LFLAGS += -Wl,--stack,$$STACKSIZE
 }
 
 mingw* {
@@ -142,6 +146,8 @@ netbsd* {
   # might want to actually turn this on once in a while
   QMAKE_CXXFLAGS_WARN_ON += -Wno-sign-compare
 }
+
+!lessThan(QT_VERSION, 5.9): CONFIG += ccache
 
 CONFIG(skip-version-check) {
   # force the use of outdated libraries
@@ -316,7 +322,6 @@ HEADERS += src/version_check.h \
            src/linalg.h \
            src/Camera.h \
            src/system-gl.h \
-           src/stl-utils.h \
            src/boost-utils.h \
            src/LibraryInfo.h \
            src/svg.h \
@@ -349,7 +354,9 @@ HEADERS += src/version_check.h \
            src/parameter/parametertext.h \
            src/parameter/parametervector.h \
            src/parameter/groupwidget.h \
-           src/parameter/parameterset.h
+           src/parameter/parameterset.h \
+           src/QWordSearchField.h \
+           src/QSettingsCached.h
 
 SOURCES += \
            src/libsvg/libsvg.cc \
@@ -410,7 +417,6 @@ SOURCES += \
            src/fileutils.cc \
            src/progress.cc \
            src/parsersettings.cc \
-           src/stl-utils.cc \
            src/boost-utils.cc \
            src/PlatformUtils.cc \
            src/LibraryInfo.cc \
@@ -421,9 +427,9 @@ SOURCES += \
            src/ModuleCache.cc \
            src/GeometryCache.cc \
            src/Tree.cc \
-	   src/DrawingCallback.cc \
-	   src/FreetypeRenderer.cc \
-	   src/FontCache.cc \
+	       src/DrawingCallback.cc \
+	       src/FreetypeRenderer.cc \
+	       src/FontCache.cc \
            \
            src/settings.cc \
            src/rendersettings.cc \
@@ -490,7 +496,10 @@ SOURCES += \
            src/parameter/parametervector.cpp \
            src/parameter/groupwidget.cpp \
            src/parameter/parameterset.cpp \
-           src/parameter/parametervirtualwidget.cpp
+           src/parameter/parametervirtualwidget.cpp\
+           src/QWordSearchField.cc\
+           \
+           src/QSettingsCached.cc
 
 
 # ClipperLib
@@ -581,7 +590,7 @@ target.path = $$PREFIX/bin/
 INSTALLS += target
 
 # Run translation update scripts as last step after linking the target
-QMAKE_POST_LINK += $$PWD/scripts/translation-make.sh
+QMAKE_POST_LINK += "$$PWD/scripts/translation-make.sh"
 
 # Create install targets for the languages defined in LINGUAS
 LINGUAS = $$cat(locale/LINGUAS)
@@ -619,7 +628,7 @@ colorschemes.files = color-schemes/*
 INSTALLS += colorschemes
 
 applications.path = $$PREFIX/share/applications
-applications.extra = cat icons/openscad.desktop | sed -e \"'s/^Icon=openscad/Icon=$${FULLNAME}/; s/^Exec=openscad/Exec=$${FULLNAME}/'\" > \"\$(INSTALL_ROOT)$${applications.path}/$${FULLNAME}.desktop\"
+applications.extra = mkdir -p \"\$(INSTALL_ROOT)$${applications.path}\" && cat icons/openscad.desktop | sed -e \"'s/^Icon=openscad/Icon=$${FULLNAME}/; s/^Exec=openscad/Exec=$${FULLNAME}/'\" > \"\$(INSTALL_ROOT)$${applications.path}/$${FULLNAME}.desktop\"
 INSTALLS += applications
 
 mimexml.path = $$PREFIX/share/mime/packages

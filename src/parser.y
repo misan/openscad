@@ -165,17 +165,17 @@ statement:
         | '{' inner_input '}'
         | module_instantiation
             {
-                if ($1) scope_stack.top()->addChild($1);
+              if ($1) scope_stack.top()->addChild($1);
             }
         | assignment
         | TOK_MODULE TOK_ID '(' arguments_decl optional_commas ')'
             {
               UserModule *newmodule = new UserModule($2, LOC(@$));
-                newmodule->definition_arguments = *$4;
-                scope_stack.top()->modules[$2] = newmodule;
-                scope_stack.push(&newmodule->scope);
-                free($2);
-                delete $4;
+              newmodule->definition_arguments = *$4;
+              scope_stack.top()->addModule($2, newmodule);
+              scope_stack.push(&newmodule->scope);
+              free($2);
+              delete $4;
             }
           statement
             {
@@ -184,9 +184,9 @@ statement:
         | TOK_FUNCTION TOK_ID '(' arguments_decl optional_commas ')' '=' expr
             {
               UserFunction *func = UserFunction::create($2, *$4, shared_ptr<Expression>($8), LOC(@$));
-                scope_stack.top()->functions[$2] = func;
-                free($2);
-                delete $4;
+              scope_stack.top()->addFunction(func);
+              free($2);
+              delete $4;
             }
           ';'
         ;
@@ -209,7 +209,7 @@ assignment:
                     }
                 }
                 if (!found) {
-                  scope_stack.top()->assignments.push_back(Assignment($1, shared_ptr<Expression>($3), LOC(@$)));
+                  scope_stack.top()->addAssignment(Assignment($1, shared_ptr<Expression>($3), LOC(@$)));
                 }
                 free($1);
             }
@@ -628,7 +628,7 @@ void yyerror (char const *s)
          sourcefile() % lexerget_lineno() % s);
 }
 
-FileModule *parse(const char *text, const std::string &filename, int debug)
+bool parse(FileModule *&module, const char *text, const std::string &filename, int debug)
 {
   fs::path path = fs::absolute(fs::path(filename));
   
@@ -646,9 +646,10 @@ FileModule *parse(const char *text, const std::string &filename, int debug)
   lexerdestroy();
   lexerlex_destroy();
 
-  if (parserretval != 0) return NULL;
+  module = rootmodule;
+  if (parserretval != 0) return false;
 
   parser_error_pos = -1;
   scope_stack.pop();
-  return rootmodule;
+  return true;
 }

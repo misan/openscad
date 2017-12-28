@@ -3,6 +3,7 @@
 #include "annotation.h"
 #include <string>
 #include <vector>
+#include <boost/range/adaptor/reversed.hpp>
 
 struct GroupInfo {
 	std::string commentString;
@@ -285,7 +286,7 @@ void CommentParser::collectParameters(const char *fulltext, FileModule *root_mod
  
 		// Extracting the parameter comment
 		std::string comment = getComment(std::string(fulltext), firstLine);
-		// getting the node for parameter annnotataion
+		// getting the node for parameter annotation
 		shared_ptr<Expression> params = CommentParser::parser(comment.c_str());
 		if (!params) {
 			params = shared_ptr<Expression>(new Literal(ValuePtr(std::string(""))));
@@ -303,14 +304,13 @@ void CommentParser::collectParameters(const char *fulltext, FileModule *root_mod
 		}
 
 		// Look for the group to which the given assignment belong
-		int i=0;
-		for (;i<groupList.size() && groupList[i].lineNo<firstLine;i++);
-		i--;
-
-		if (i >= 0) {
-			//creating node for description
-			shared_ptr<Expression> expr(new Literal(ValuePtr(groupList[i].commentString)));
-			annotationList->push_back(Annotation("Group", expr));
+		for (const auto &groupInfo :boost::adaptors::reverse(groupList)){
+			if (groupInfo.lineNo < firstLine) {
+				//creating node for description
+				shared_ptr<Expression> expr(new Literal(ValuePtr(groupInfo.commentString)));
+				annotationList->push_back(Annotation("Group", expr));
+				break;
+			}
 		}
 		assignment.addAnnotations(annotationList);
 	}

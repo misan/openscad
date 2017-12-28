@@ -30,23 +30,30 @@ std::vector<std::string> ParameterSet::getParameterNames()
 
 boost::optional<pt::ptree &> ParameterSet::getParameterSet(const std::string &setName)
 {
-	boost::optional<pt::ptree &> sets = root.get_child_optional(ParameterSet::parameterSetsKey);
+	boost::optional<pt::ptree &> sets = parameterSets();
 	if (!sets.is_initialized()) {
 		return sets;
 	}
 
-	boost::optional<pt::ptree &> set = sets.get().get_child_optional(setName);
-	return set;
+	pt::ptree::assoc_iterator set = sets.get().find(pt::ptree::key_type(setName));
+	if(set!=sets.get().not_found()) {
+		return set->second;
+	}
+	return sets;
 }
 
 void ParameterSet::addParameterSet(const std::string setName, const pt::ptree & set)
 {
 	boost::optional<pt::ptree &> sets = parameterSets();
 	if (sets.is_initialized()) {
-		sets.get().erase(setName);
+		sets.get().erase(pt::ptree::key_type(setName));
+		sets.get().push_back(pt::ptree::value_type(setName,set));
 	}
-
-	root.add_child(ParameterSet::parameterSetsKey + "." + setName, set);
+	else {
+		pt::ptree child;
+		child.push_back(pt::ptree::value_type(setName,set));
+		root.push_back(pt::ptree::value_type(ParameterSet::parameterSetsKey,child));
+	}
 }
 
 /*!
@@ -88,15 +95,15 @@ void ParameterSet::applyParameterSet(FileModule *fileModule, const std::string &
 	if (fileModule == NULL || this->root.empty()) return;
 	try {
 		ModuleContext ctx;
-		std::string path = parameterSetsKey + "." + setName;
+		boost::optional<pt::ptree &> set = getParameterSet(setName);
 		for (auto &assignment : fileModule->scope.assignments) {
-			for (auto &v : root.get_child(path)) {
+			for (auto &v : set.get()) {
 				if (v.first == assignment.name) {
 					const ValuePtr defaultValue = assignment.expr->evaluate(&ctx);
-					if (defaultValue->type() == Value::STRING) {
+					if (defaultValue->type() == Value::ValueType::STRING) {
 						assignment.expr = shared_ptr<Expression>(new Literal(ValuePtr(v.second.data())));
 					}
-					else if (defaultValue->type() == Value::BOOL) {
+					else if (defaultValue->type() == Value::ValueType::BOOL) {
 						assignment.expr = shared_ptr<Expression>(new Literal(ValuePtr(v.second.get_value<bool>())));
 					} else {
 						shared_ptr<Expression> params = CommentParser::parser(v.second.data().c_str());

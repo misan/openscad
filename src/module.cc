@@ -36,11 +36,11 @@ AbstractModule::~AbstractModule()
 double AbstractModule::lookup_double_variable_with_default(Context &c, std::string variable, double def) const
 {
 	ValuePtr v = c.lookup_variable(variable, true);
-	return (v->type() == Value::NUMBER) ? v->toDouble() : def;
+	return (v->type() == Value::ValueType::NUMBER) ? v->toDouble() : def;
 }
 
 std::string AbstractModule::lookup_string_variable_with_default(Context &c, std::string variable, std::string def) const
 {
 	ValuePtr v = c.lookup_variable(variable, true);
-	return (v->type() == Value::STRING) ? v->toString() : def;
+	return (v->type() == Value::ValueType::STRING) ? v->toString() : def;
 }
