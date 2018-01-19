@@ -99,6 +99,7 @@ fs::path parser_sourcefile;
 %token <text> TOK_ID
 %token <text> TOK_STRING
 %token <text> TOK_USE
+%token <text> TOK_INCLUDE
 %token <number> TOK_NUMBER
 
 %token TOK_TRUE
@@ -153,7 +154,13 @@ fs::path parser_sourcefile;
 input:    /* empty */
         | TOK_USE
             {
-              rootmodule->registerUse(UseNode(std::string($1), LOC(@$)));
+              rootmodule->addUseNode(UseNode(std::string($1), LOC(@$)));
+              free($1);
+            }
+          input
+        | TOK_INCLUDE
+            {
+              rootmodule->addIncludeNode(IncludeNode(std::string($1), LOC(@$)));
               free($1);
             }
           input
@@ -643,6 +650,7 @@ bool parse(FileModule *&module, const char *text, const std::string &filename, i
 
   parserdebug = debug;
   int parserretval = parserparse();
+
   lexerdestroy();
   lexerlex_destroy();
 
@@ -651,5 +659,6 @@ bool parse(FileModule *&module, const char *text, const std::string &filename, i
 
   parser_error_pos = -1;
   scope_stack.pop();
+
   return true;
 }

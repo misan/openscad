@@ -21,3 +21,8 @@ void UseNode::print(std::ostream &stream, const std::string &indent) const
 {
 	stream << indent << "use <" << this->filename << ">\n";
 }
+
+void IncludeNode::print(std::ostream &stream, const std::string &indent) const
+{
+	stream << indent << "include <" << this->filename << ">\n";
+}
